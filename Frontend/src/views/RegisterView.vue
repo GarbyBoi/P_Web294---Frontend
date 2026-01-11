@@ -25,7 +25,8 @@ import { useAuthStore, type User } from '@/stores/auth'
 const router = useRouter()
 const auth = useAuthStore()
 
-const REGISTER_URL = 'http://localhost:3333/user/register'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
+const REGISTER_URL = `${API_BASE_URL}/user/register`
 
 const fields = [
   {

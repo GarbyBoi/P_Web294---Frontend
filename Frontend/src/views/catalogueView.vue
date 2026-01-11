@@ -17,6 +17,10 @@ const myBooks = computed(() => {
   if (!userId) return []
   return books.value.filter((b) => (b as any).user?.id === userId)
 })
+
+function onDeleted(id: number) {
+  books.value = books.value.filter((b) => b.id !== id)
+}
 </script>
 
 <template>
@@ -32,7 +36,13 @@ const myBooks = computed(() => {
     <p v-if="!auth.user">Vous devez être connecté pour voir votre catalogue.</p>
 
     <div v-else class="catalogue-grid">
-      <BookCard v-for="book in myBooks" :key="book.id" :book="book" :showActions="true" />
+      <BookCard
+        v-for="book in myBooks"
+        :key="book.id"
+        :book="book"
+        :showActions="true"
+        @deleted="onDeleted"
+      />
     </div>
   </div>
 </template>

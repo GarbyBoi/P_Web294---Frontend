@@ -32,7 +32,8 @@ const fields = [
   },
 ]
 
-const LOGIN_URL = 'http://localhost:3333/user/login'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
+const LOGIN_URL = `${API_BASE_URL}/user/login`
 
 async function handleSubmit(data: { username: string; password: string }) {
   try {

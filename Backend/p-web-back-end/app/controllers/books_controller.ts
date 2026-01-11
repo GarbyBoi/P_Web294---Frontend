@@ -1,7 +1,6 @@
 import Book from '#models/book'
-import Comment from '#models/comment'
 import Evaluate from '#models/evaluate'
-import user from '#models/user'
+import Comment from '#models/comment'
 import type { HttpContext } from '@adonisjs/core/http'
 
 export default class BooksController {
@@ -35,7 +34,16 @@ export default class BooksController {
       .where('id', params.id)
       .firstOrFail()
 
-    return await book
+    const evaluates = await Evaluate.query().where('book_id', params.id)
+    const total = evaluates.length
+    const average =
+      total > 0 ? evaluates.reduce((sum, evaluate) => sum + evaluate.note, 0) / total : 0
+
+    return {
+      ...book.toJSON(),
+      global_rating: Math.floor(average * 10) / 10,
+      total_comments: total,
+    }
   }
 
   async home({}: HttpContext) {
@@ -120,16 +128,18 @@ export default class BooksController {
     const bookId = params.id
 
     try {
-      const evaluates = await Evaluate.query().where('book_id', bookId)
+      const evaluates = await Evaluate.query().where('book_id', bookId).preload('user')
       const comments = await Comment.query().where('book_id', bookId)
 
       // Fusionner par userId
       const merged = evaluates.map((evaluate) => {
         const comment = comments.find((c) => c.userId === evaluate.userId)
         return {
+          evaluateId: evaluate.id,
           userId: evaluate.userId,
+          username: evaluate.user?.username ?? null,
           rating: evaluate.note,
-          comment: comment?.comment || null,
+          comment: evaluate.comment ?? comment?.comment ?? null,
         }
       })
 

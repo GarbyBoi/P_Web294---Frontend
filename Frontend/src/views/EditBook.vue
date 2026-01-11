@@ -1,9 +1,10 @@
 <script lang="ts" setup>
-import type { Book } from '@/models/book'
+import type { Book } from '@/models/Book'
 import { onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { fetchBook, updateBook } from '@/api/books'
-import type { Writer } from '@/api/writer'
+import { fetchBook, updateBook, type CreateBookPayload } from '@/api/books'
+import { getCategories, type Category } from '@/api/categories'
+import { getWriters, createWriter, type Writer } from '@/api/writers'
 
 const route = useRoute()
 const router = useRouter()
@@ -15,38 +16,36 @@ const saving = ref(false)
 const error = ref<string | null>(null)
 const success = ref<string | null>(null)
 
-// Livre original (optionnel, utile pour comparaison / reset)
 const book = ref<Book | null>(null)
 
-// État du formulaire (copie modifiable)
-const form = reactive<Book>({
-  id: bookId,
+const categories = ref<Category[]>([])
+const writers = ref<Writer[]>([])
+
+const writerFirstName = ref('')
+const writerLastName = ref('')
+
+const form = reactive<CreateBookPayload>({
   title: '',
-  numberOfPages: 0,
-  pdfLink: '',
+  category_id: 0,
+  number_of_pages: 0,
+  pdf_link: '',
   abstract: '',
   editor: '',
-  editionYear: '',
-  category: { label: '' } as object | undefined,
-} as Book)
-
-const wId = form.writerId
-
-const formWriter = reactive<Writer>({
-  id: wId,
-  firstname: '',
-  lastname: '',
-} as Writer)
+  edition_year: new Date().getFullYear(),
+  image_path: '',
+  writer_id: 0,
+})
 
 function hydrateForm(b: Book) {
-  // évite les crashs si certains sous-objets sont absents
-  const safe = {
-    ...b,
-  }
-  console.log('Livre Objet :', b)
-  console.log('Details:', form.writer)
-  // copie dans reactive(form)
-  Object.assign(form, safe)
+  form.title = b.title ?? ''
+  form.category_id = b.categoryId ?? b.category?.id ?? 0
+  form.writer_id = b.writerId ?? b.writer?.id ?? 0
+  form.number_of_pages = b.numberOfPages ?? 0
+  form.pdf_link = b.pdfLink ?? ''
+  form.abstract = b.abstract ?? ''
+  form.editor = b.editor ?? ''
+  form.edition_year = b.editionYear ?? new Date().getFullYear()
+  form.image_path = b.imagePath ?? ''
 }
 
 async function loadBook() {
@@ -55,9 +54,16 @@ async function loadBook() {
   success.value = null
 
   try {
-    const data = await fetchBook(bookId)
-    book.value = data
-    hydrateForm(data)
+    const [bookData, categoriesData, writersData] = await Promise.all([
+      fetchBook(bookId),
+      getCategories(),
+      getWriters(),
+    ])
+
+    book.value = bookData
+    categories.value = categoriesData
+    writers.value = writersData
+    hydrateForm(bookData)
   } catch (e: Error) {
     error.value = e?.message ?? 'Failed to load book'
   } finally {
@@ -71,13 +77,40 @@ async function onSubmit() {
     return
   }
 
-  saving.value = true
   error.value = null
   success.value = null
 
+  if (!form.title.trim()) return (error.value = 'Le titre est obligatoire.')
+  if (!form.category_id) return (error.value = 'Veuillez choisir une catégorie.')
+  if (form.number_of_pages <= 0) return (error.value = 'Le nombre de pages doit être supérieur à 0.')
+  if (!form.image_path.trim()) return (error.value = "L'URL de l'image est obligatoire.")
+
+  saving.value = true
+
+  if (form.writer_id === 0) {
+    if (!writerFirstName.value.trim() || !writerLastName.value.trim()) {
+      error.value = 'Renseigne prénom + nom pour créer un écrivain.'
+      saving.value = false
+      return
+    }
+
+    try {
+      const created = await createWriter(writerFirstName.value.trim(), writerLastName.value.trim())
+      writers.value = await getWriters()
+      form.writer_id = created.id
+    } catch (err: any) {
+      error.value = err?.response?.data?.message || err?.message || "Impossible de créer l'écrivain."
+      saving.value = false
+      return
+    }
+  }
+
+  if (!form.writer_id) {
+    saving.value = false
+    return (error.value = 'Veuillez choisir un écrivain.')
+  }
+
   try {
-    // Payload : ici je renvoie l'objet form complet.
-    // Si ton API attend seulement certains champs, construis un payload minimal.
     const updated = await updateBook(bookId, form)
 
     book.value = updated
@@ -97,205 +130,237 @@ onMounted(loadBook)
 </script>
 
 <template>
-  <div class="page">
-    <main class="content">
-      <h2 class="headline">Veuillez remplir les champs pour modifier un ouvrage</h2>
+  <div class="addbook-page">
+    <div class="card">
+      <h2>Veuillez remplir les champs pour modifier un ouvrage</h2>
 
       <p v-if="loading" class="state">Chargement…</p>
-      <p v-else-if="error" class="alert alert--error">{{ error }}</p>
-      <p v-else-if="success" class="alert alert--success">{{ success }}</p>
+      <p v-else-if="error" class="error">{{ error }}</p>
+      <p v-else-if="success" class="success">{{ success }}</p>
 
-      <form v-if="!loading" class="form-card" @submit.prevent="onSubmit">
-        <div class="form-grid">
-          <!-- Colonne gauche -->
-          <section class="col">
-            <div class="field">
-              <label for="titre">Titre</label>
-              <input id="titre" type="text" v-model="form.title" />
-            </div>
+      <form v-if="!loading" class="form-grid" @submit.prevent="onSubmit">
+        <!-- Colonne gauche -->
+        <div class="col">
+          <label>
+            Titre
+            <input v-model="form.title" type="text" placeholder="Titre" />
+          </label>
 
-            <div class="field">
-              <label for="categorie">Catégorie</label>
-              <input id="categorie" type="text" v-model="form.category.name" />
-            </div>
+          <label>
+            Catégorie
+            <select v-model.number="form.category_id">
+              <option disabled :value="0">Choisir...</option>
+              <option v-for="c in categories" :key="c.id" :value="c.id">
+                {{ c.label }}
+              </option>
+            </select>
+          </label>
 
-            <div class="field">
-              <label for="pages">Nombre de pages</label>
-              <input id="pages" type="number" v-model.number="form.numberOfPages" />
-            </div>
+          <label>
+            Nombre de pages
+            <input v-model.number="form.number_of_pages" type="number" min="1" placeholder="0" />
+          </label>
 
-            <div class="field">
-              <label for="extrait">Extrait (pdf)</label>
-              <input id="extrait" type="url" v-model="form.pdfLink" />
-            </div>
-          </section>
-
-          <!-- Colonne centrale -->
-          <section class="col">
-            <div class="field field--textarea">
-              <label for="resume">Résumé</label>
-              <textarea id="resume" v-model="form.abstract"></textarea>
-            </div>
-
-            <div class="field">
-              <label for="auteur">Prénom et nom de l’écrivain</label>
-              <input id="auteur" type="text" v-model="formWriter.firstname" />
-            </div>
-          </section>
-
-          <!-- Colonne droite -->
-          <section class="col">
-            <div class="field">
-              <label for="editeur">Éditeur</label>
-              <input id="editeur" type="text" v-model="form.editor" />
-            </div>
-
-            <div class="field">
-              <label for="date_publication">Année d’édition</label>
-              <input id="date_publication" type="date" v-model="form.editionYear" />
-            </div>
-
-            <div class="field">
-              <label>Image de couverture</label>
-              <button class="btn btn--ghost" type="button">Importer une image</button>
-            </div>
-          </section>
+          <label>
+            Extrait (pdf)
+            <input v-model="form.pdf_link" type="url" placeholder="https://..." />
+          </label>
         </div>
 
-        <!-- Actions -->
-        <div class="actions">
-          <button class="btn btn--link" type="button" @click="router.back()">Annuler</button>
+        <!-- Colonne milieu -->
+        <div class="col">
+          <label class="full-height">
+            Résumé
+            <textarea v-model="form.abstract" placeholder="Résumé..."></textarea>
+          </label>
 
-          <button class="btn btn--primary" type="submit" :disabled="saving">
+          <label>
+            Écrivain (existant)
+            <select v-model.number="form.writer_id">
+              <option :value="0">— Créer un nouvel écrivain —</option>
+              <option v-for="w in writers" :key="w.id" :value="w.id">
+                {{ w.firstname }} {{ w.lastname }} ({{ w.id }})
+              </option>
+            </select>
+          </label>
+
+          <div v-if="form.writer_id === 0" class="writer-create">
+            <label>
+              Prénom
+              <input v-model="writerFirstName" type="text" placeholder="Prénom" />
+            </label>
+            <label>
+              Nom
+              <input v-model="writerLastName" type="text" placeholder="Nom" />
+            </label>
+          </div>
+        </div>
+
+        <!-- Colonne droite -->
+        <div class="col">
+          <label>
+            Éditeur
+            <input v-model="form.editor" type="text" placeholder="Éditeur" />
+          </label>
+
+          <label>
+            Année d’édition
+            <input v-model.number="form.edition_year" type="number" min="0" placeholder="2025" />
+          </label>
+
+          <label>
+            Image de couverture (URL)
+            <input v-model="form.image_path" type="url" placeholder="https://..." />
+          </label>
+
+          <div v-if="form.image_path" class="preview">
+            <img :src="form.image_path" alt="Aperçu couverture" />
+          </div>
+        </div>
+
+        <div class="actions">
+          <button type="button" class="btn-cancel" @click="router.back()">Annuler</button>
+          <button type="submit" class="btn-submit" :disabled="saving">
             {{ saving ? 'Enregistrement…' : 'Enregistrer l’ouvrage' }}
           </button>
         </div>
       </form>
-    </main>
+    </div>
   </div>
 </template>
 
 <style scoped>
-/* Page */
-.page {
-  min-height: 70vh;
-  background: #ffffff;
-  display: grid;
-  place-items: center;
-  padding: 32px 24px;
+.addbook-page {
+  display: flex;
+  justify-content: center;
+  padding: 30px 15px;
+  margin-bottom: 215px;
 }
 
-/* Content */
-.content {
-  width: 100%;
+.card {
+  width: min(980px, 100%);
+  background: white;
+  border-radius: 14px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12);
+  padding: 24px 26px;
 }
 
-.headline {
-  text-align: center;
-  font-size: 22px;
-  font-weight: 800;
-  margin-bottom: 26px;
+h2 {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 18px;
 }
 
-/* States */
 .state {
   text-align: center;
 }
 
-/* Alerts */
-.alert {
-  margin: 0 auto 16px;
-  width: min(1050px, 100%);
+.error {
+  background: #ffe2e2;
+  border: 1px solid #ffbcbc;
+  color: #7a0b0b;
   padding: 10px 12px;
-  border-radius: 12px;
-}
-.alert--error {
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  color: #991b1b;
-}
-.alert--success {
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  color: #166534;
+  border-radius: 10px;
+  margin-bottom: 12px;
 }
 
-/* Card */
-.form-card {
-  width: min(1050px, 100%);
-  margin: 0 auto;
+.success {
+  background: #e8f5e9;
+  border: 1px solid #bde5c8;
+  color: #1b5e20;
+  padding: 10px 12px;
+  border-radius: 10px;
+  margin-bottom: 12px;
 }
 
-/* Grid */
 .form-grid {
   display: grid;
-  grid-template-columns: 1fr 1.15fr 1fr;
-  gap: 34px;
+  grid-template-columns: 1fr 1.2fr 1fr;
+  gap: 18px;
 }
 
-/* Fields */
-.field {
-  display: grid;
-  gap: 10px;
-  margin-bottom: 24px;
+.col label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 14px;
 }
 
-.field label {
-  font-size: 20px;
-  font-weight: 800;
-}
-
-.field input,
-.field textarea {
-  background: #dff0ff;
-  border: 2px solid #2f6fcf;
+input,
+select,
+textarea {
+  background: #d9f0ff;
+  border: 1px solid #9ccfff;
   border-radius: 6px;
-  padding: 10px 12px;
-  font-size: 16px;
+  padding: 8px 10px;
+  outline: none;
+  font-size: 12px;
 }
 
-.field textarea {
-  min-height: 260px;
-  resize: vertical;
+textarea {
+  min-height: 140px;
+  resize: none;
 }
 
-/* Actions */
-.actions {
+.writer-create {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.preview {
+  margin-top: 10px;
   display: flex;
   justify-content: center;
-  gap: 28px;
-  margin-top: 18px;
 }
 
-/* Buttons */
-.btn {
-  border: none;
-  cursor: pointer;
-  font-size: 18px;
-  border-radius: 14px;
-  padding: 10px 20px;
+.preview img {
+  width: 120px;
+  height: 170px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #ddd;
 }
 
-.btn--primary {
-  background: #7fc16b;
+.actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: center;
+  gap: 30px;
+  margin-top: 10px;
 }
 
-.btn--link {
+.btn-cancel {
   background: transparent;
+  border: none;
+  color: #222;
+  font-weight: 600;
+  cursor: pointer;
 }
 
-.btn--ghost {
-  background: #e5e7eb;
-  border: 1px solid rgba(0, 0, 0, 0.3);
+.btn-submit {
+  background: #4caf50;
+  border: none;
+  color: white;
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
 }
 
-/* Responsive */
-@media (max-width: 980px) {
+.btn-submit:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+@media (max-width: 900px) {
   .form-grid {
     grid-template-columns: 1fr;
   }
   .actions {
-    flex-direction: column;
+    justify-content: space-between;
   }
 }
 </style>

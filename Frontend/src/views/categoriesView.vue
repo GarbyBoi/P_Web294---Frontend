@@ -1,6 +1,8 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
 import { useRouter } from 'vue-router'
 import BookCard from '@/components/bookcard/BookCard.vue'
 
@@ -18,7 +20,7 @@ const selectedCategory = ref('')
 // ------------------------------
 onMounted(async () => {
   try {
-    const res = await axios.get('http://localhost:3333/categories')
+    const res = await axios.get(`${API_BASE_URL}/categories`)
     categories.value = res.data
   } catch (err) {
     console.error('Failed to load categories:', err)
@@ -32,7 +34,7 @@ async function goToCategory(cat) {
   selectedCategory.value = cat.label
 
   try {
-    const res = await axios.get(`http://localhost:3333/categories/${cat.id}/books`)
+    const res = await axios.get(`${API_BASE_URL}/categories/${cat.id}/books`)
 
     // Map backend → frontend format for BookCard.vue
     books.value = res.data.map((book) => ({
@@ -75,7 +77,11 @@ async function goToCategory(cat) {
         <section class="books-section">
           <h2>{{ selectedCategory }}</h2>
 
-          <div class="book-cards">
+          <p v-if="selectedCategory && books.length === 0" class="empty-state">
+            No books available.
+          </p>
+
+          <div v-else class="book-cards">
             <BookCard v-for="book in books" :key="book.id" :book="book" :showActions="false" />
           </div>
         </section>
@@ -171,5 +177,11 @@ async function goToCategory(cat) {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 30px; /* more spacing between cards */
   padding-top: 10px;
+}
+
+.empty-state {
+  color: #6b7280;
+  font-size: 14px;
+  padding: 6px 0;
 }
 </style>

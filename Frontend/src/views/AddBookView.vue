@@ -83,8 +83,13 @@ async function handleSubmit() {
 
   try {
     isSubmitting.value = true
-    await createBook(form)
-    router.push({ name: 'catalogue' })
+    const created = await createBook(form)
+
+    if (created?.id) {
+      router.push({ name: 'book', params: { id: created.id } })
+    } else {
+      router.push({ name: 'catalogue' })
+    }
   } catch (err: any) {
     errorMsg.value =
       err?.response?.data?.message ||

@@ -2,13 +2,13 @@ import type { Writer } from '@/models/Writer'
 import type { Category } from '@/models/Category'
 
 export interface Book {
-  id: string
+  id: number
   title: string
   numberOfPages: number
   pdfLink: string
   abstract: string
   editor: string
-  editionYear: Date
+  editionYear: number
   imagePath: string
   comment: string
   categoryId: number
@@ -29,5 +29,5 @@ export interface BookCreation {
   abstract: string
   editor: string
   imagePath: string
-  editionYear: Date
+  editionYear: number
 }

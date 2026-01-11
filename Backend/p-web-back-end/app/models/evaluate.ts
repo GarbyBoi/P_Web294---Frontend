@@ -12,6 +12,9 @@ export default class Evaluate extends BaseModel {
   @column()
   declare note: number
   
+  @column()
+  declare comment: string | null
+
   //Récupération des 2 clefs étrangères 
   
   @column()

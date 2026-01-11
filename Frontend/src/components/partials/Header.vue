@@ -6,7 +6,8 @@ import { useAuthStore } from '@/stores/auth.ts'
 const router = useRouter()
 const auth = useAuthStore()
 
-const LOGOUT_URL = 'http://localhost:3333/user/logout'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
+const LOGOUT_URL = `${API_BASE_URL}/user/logout`
 
 async function handleLogout() {
   try {
@@ -31,10 +32,10 @@ async function handleLogout() {
 
 <template>
   <header class="top-bar">
-    <div class="logo">
+    <router-link :to="{ name: 'home' }" class="logo">
       <div class="logo-icon">📚</div>
       <div class="logo-text">Lecture Passion</div>
-    </div>
+    </router-link>
 
     <nav class="main-nav">
       <ul>
@@ -80,6 +81,8 @@ header {
   display: flex;
   align-items: center;
   gap: 8px;
+  text-decoration: none;
+  color: inherit;
 }
 
 .logo-icon {

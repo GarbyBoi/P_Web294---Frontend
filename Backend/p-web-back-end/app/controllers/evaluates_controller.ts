@@ -1,3 +1,4 @@
+import Comment from '#models/comment'
 import Evaluate from '#models/evaluate'
 import type { HttpContext } from '@adonisjs/core/http'
 
@@ -32,22 +33,72 @@ async AvgRating({ params, response }: HttpContext) {
 
   public async store({ request, auth, response }: HttpContext) {
     // Récupérer les données envoyées
-    const data = request.only(['book_id', 'content'])
+    const data = request.only(['book_id', 'rating', 'comment'])
+    const bookId = data.book_id ?? request.input('bookId')
+    const rating = data.rating
 
     // Vérifier que l'utilisateur est authentifié
     const user = auth.user
     if (!user) {
       return response.unauthorized({ message: 'Vous devez être connecté pour commenter.' })
     }
+    if (bookId === undefined || bookId === null) {
+      return response.badRequest({ message: 'book_id est requis.' })
+    }
+    if (rating === undefined || rating === null) {
+      return response.badRequest({ message: 'rating est requis.' })
+    }
 
-    // Créer le commentaire en liant l'utilisateur
-    const comment = await Evaluate.create({
-      userId: user.id,
-      bookId: data.book_id,
-      note: data.content,
+    const existingEvaluate = await Evaluate.query()
+      .where('user_id', user.id)
+      .where('book_id', bookId)
+      .first()
+
+    if (existingEvaluate) {
+      await Evaluate.query()
+        .where('user_id', user.id)
+        .where('book_id', bookId)
+        .update({ note: rating, comment: data.comment ?? '' })
+    } else {
+      await Evaluate.create({
+        userId: user.id,
+        bookId,
+        note: rating,
+        comment: data.comment ?? '',
+      })
+    }
+
+    const existingComment = await Comment.query()
+      .where('user_id', user.id)
+      .where('book_id', bookId)
+      .first()
+
+    if (existingComment) {
+      await Comment.query()
+        .where('user_id', user.id)
+        .where('book_id', bookId)
+        .update({ comment: data.comment ?? '' })
+    } else {
+      await Comment.create({
+        userId: user.id,
+        bookId,
+        comment: data.comment ?? '',
+      })
+    }
+
+    const evaluate = await Evaluate.query()
+      .where('user_id', user.id)
+      .where('book_id', bookId)
+      .preload('user')
+      .firstOrFail()
+
+    return response.created({
+      evaluateId: evaluate.id,
+      userId: evaluate.userId,
+      username: evaluate.user?.username ?? null,
+      rating: evaluate.note,
+      comment: evaluate.comment ?? null,
     })
-
-    return response.created(comment)
   }
   /**
    * Show individual record
@@ -67,23 +118,68 @@ async AvgRating({ params, response }: HttpContext) {
       return response.unauthorized({ message: 'Vous devez être connecté pour modifier un commentaire.' })
     }
 
-    // Chercher le commentaire
-    const note = await Evaluate.find(params.id)
-    if (!note) {
+    const data = request.only(['rating', 'comment', 'book_id'])
+    const bookId = data.book_id ?? params.id
+    if (bookId === undefined || bookId === null) {
+      return response.badRequest({ message: 'book_id est requis.' })
+    }
+
+    const existingEvaluate = await Evaluate.query()
+      .where('user_id', user.id)
+      .where('book_id', bookId)
+      .first()
+    if (!existingEvaluate) {
       return response.notFound({ message: 'Commentaire non trouvé.' })
     }
 
-    // Vérifier que le commentaire appartient à l'utilisateur
-    if (note.userId !== user.id) {
-      return response.forbidden({ message: 'Vous ne pouvez modifier que vos propres commentaires.' })
+    // Mettre à jour le commentaire
+    const updatePayload: { note?: number; comment?: string } = {}
+    if (data.rating !== undefined) {
+      updatePayload.note = data.rating
+    }
+    if (data.comment !== undefined) {
+      updatePayload.comment = data.comment ?? ''
     }
 
-    // Mettre à jour le commentaire
-    const data = request.only(['content'])
-    note.note = data.content
-    await note.save()
+    if (Object.keys(updatePayload).length > 0) {
+      await Evaluate.query()
+        .where('user_id', user.id)
+        .where('book_id', bookId)
+        .update(updatePayload)
+    }
 
-    return response.ok(note)
+    if (data.comment !== undefined) {
+      const existingComment = await Comment.query()
+        .where('user_id', user.id)
+        .where('book_id', bookId)
+        .first()
+      if (existingComment) {
+        await Comment.query()
+          .where('user_id', user.id)
+          .where('book_id', bookId)
+          .update({ comment: data.comment ?? '' })
+      } else {
+        await Comment.create({
+          userId: user.id,
+          bookId,
+          comment: data.comment ?? '',
+        })
+      }
+    }
+
+    const evaluate = await Evaluate.query()
+      .where('user_id', user.id)
+      .where('book_id', bookId)
+      .preload('user')
+      .firstOrFail()
+
+    return response.ok({
+      evaluateId: evaluate.id,
+      userId: evaluate.userId,
+      username: evaluate.user?.username ?? null,
+      rating: evaluate.note,
+      comment: evaluate.comment ?? null,
+    })
   }
 
   public async destroy({ params, auth, response }: HttpContext) {

@@ -17,7 +17,7 @@ export default class UsersController {
   /**
    * Handle form submission for the create action
    */
-  async store({ request }: HttpContext) {}
+  async store({ _request }: HttpContext) {}
 
   /**
    * Show individual record
@@ -34,5 +34,5 @@ export default class UsersController {
   /**
    * Delete record
    */
-  async destroy({ params }: HttpContext) {}
+  async destroy({ _params }: HttpContext) {}
 }

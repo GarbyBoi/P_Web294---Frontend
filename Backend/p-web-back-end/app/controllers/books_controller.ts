@@ -117,7 +117,7 @@ export default class BooksController {
     await book.save()
     return response.ok(book)
   }
-  async destroy({ params, auth, response }: HttpContext) {
+  async destroy({ params, _auth, response }: HttpContext) {
     //const user = auth.user!
     const book = await Book.findOrFail(params.id)
     await book.delete()

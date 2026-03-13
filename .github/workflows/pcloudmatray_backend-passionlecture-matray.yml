@@ -50,6 +50,6 @@ jobs:
         uses: azure/webapps-deploy@v3
         with:
           app-name: "backend-passionlecture-matray"
-          slot-name: "Production"
+          slot-name: "production"
           package: .
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_A90774BC30DF4DBF83F6EF4DC5102E67 }}

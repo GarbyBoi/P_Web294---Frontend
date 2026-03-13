@@ -10,7 +10,7 @@ export default class extends BaseSeeder {
         password: 'Admin123!'
       },
       {
-        username: 'jean_dupont',
+        username: 'jean_duponts',
         isAdmin: false,
         password: 'Password123!'
       },

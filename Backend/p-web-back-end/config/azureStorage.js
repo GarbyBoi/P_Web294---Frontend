@@ -1,6 +1,6 @@
-require('dotenv').config();
+import 'dotenv/config'
 
-module.exports = {
-    connectionString: process.env.AZURE_STORAGE_CONNECTION_STRING,
-    containerName: process.env.CONTAINER_NAME || 'uploads'
-};
+export default {
+  connectionString: process.env.AZURE_STORAGE_CONNECTION_STRING,
+  containerName: process.env.CONTAINER_NAME || 'uploads'
+}

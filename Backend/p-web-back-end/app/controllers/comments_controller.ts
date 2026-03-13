@@ -54,7 +54,7 @@ export default class CommentsController {
   /**
    * Edit individual record
    */
-  async edit({ _params }: HttpContext) {}
+  async edit({ params }: HttpContext) {}
 
   public async update({ params, request, auth, response }: HttpContext) {
     const user = auth.user

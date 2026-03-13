@@ -17,7 +17,7 @@ export default class CategoriesController {
   /**
    * Handle form submission for the create action
    */
-  async store({ _request }: HttpContext) {}
+  async store({ request }: HttpContext) {}
 
   /**
    * Show individual record
@@ -30,10 +30,10 @@ export default class CategoriesController {
   /**
    * Edit individual record
    */
-  async edit({ _params }: HttpContext) {}
+  async edit({ params }: HttpContext) {}
 
   /**
    * Delete record
    */
-  async destroy({ _params }: HttpContext) {}
+  async destroy({ params }: HttpContext) {}
 }
